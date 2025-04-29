@@ -1,0 +1,1336 @@
+<!-- CODE HTML COMPLET -->
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Cartographie participative - Lavaux</title>
+
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+    <!-- Autocomplete de lieux avec Leaflet et OSM -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+  <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f8f8f8;
+      margin: 40px auto;
+      max-width: 900px;
+      padding: 20px;
+      line-height: 1.6;
+      color: #333;
+    }
+
+    fieldset {
+      border: 2px solid #ccc;
+      border-left: 8px solid;
+      padding: 15px 20px;
+      margin-bottom: 20px;
+      background-color: #fff;
+    }
+
+    legend {
+      font-weight: bold;
+      padding: 0 10px;
+    }
+
+    input[type="text"], textarea, select {
+      width: 100%;
+      padding: 8px;
+      margin: 5px 0 15px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+
+    .map {
+      height: 300px;
+      margin-top: 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
+
+
+    .autocomplete-results {
+      border: 1px solid #ccc;
+      background-color: #fff;
+      max-height: 150px;
+      overflow-y: auto;
+      position: absolute;
+      z-index: 1000;
+      width: 100%;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    .autocomplete-option {
+      padding: 8px;
+      cursor: pointer;
+    }
+
+    .autocomplete-option:hover {
+      background-color: #f0f0f0;
+    }
+
+    .autocomplete-results:empty {
+      display: none;
+    }
+
+
+
+    .green { border-left-color: #2ecc71; }
+    .blue { border-left-color: #3498db; }
+    .purple { border-left-color: #9b59b6; }
+    .orange { border-left-color: #e67e22; }
+    .brown { border-left-color: #8e735b; }
+  </style>
+</head>
+<body>
+
+<h1> Le savoir-faire traditionnel lié à la construction et l'entretien des murs de vignes à Lavaux</h1>
+
+<form id="participation-form">
+
+
+  <fieldset class="green">
+    <legend>👤 Êtes-vous...</legend>
+    <label for="type">Au nom de qui vous partagez des informations</label>
+    <select name="type" id="type" onchange="updateIdentityFields()">
+      <option value="">-- Sélectionnez une option --</option>
+      <option value="personne">Personne individuelle</option>
+      <option value="famille">Famille ou Groupe de personne</option>
+      <option value="association">Association</option>
+      <option value="entreprise">Entreprise</option>
+      <option value="collectif">Collectif informel</option>
+      <option value="commune">Commune / institution publique</option>
+      <option value="autre">Autre</option>
+    </select><br><br>
+  
+    <div id="nomSection" style="display: none;">
+      <label for="nom" id="nomLabel">Je parle au nom de :</label>
+      <input type="text" name="nom" id="nom" placeholder="Ex : Jean Dupont">
+    </div>
+  
+    <div id="extraFields"></div>
+  </fieldset>
+  
+  <fieldset class="green">
+    <legend>👤 Que savez-vous sur ce savoir-faire</legend>
+    <label id="roleLabel" for="role">Sélectionnez votre lien avec ce savoir-faire :</label>
+    <select id="role" name="role" onchange="updateZones()">
+      <option value="">-- Choisissez une option --</option>
+      <option value="pratique">Je pratique (ou je pratiquais) ce savoir-faire</option>
+      <option value="etudie">J’étudie (ou j’étudiais) ce savoir-faire</option>
+      <option value="lesdeux">J’étudie (ou j'étudiais) et je pratique (ou je pratiquais)</option>
+      <option value="temoin">Je ne le pratique (ni ne l'ai pratiqué) ni ne l’étudie (ni ne l'ai étudié) mais j'ai des informations à partager</option>
+    </select>
+
+    <div id="intention-transmission" style="display: none; margin-top: 20px;">
+      <label for="transmission_intention" id="transmission-label" style="font-weight: bold;">
+        Si vous aviez l’occasion de transmettre vos connaissances à d’autres personnes, le feriez-vous ?
+      </label><br>
+      <select name="transmission_intention" id="transmission_intention">
+        <option value="">-- Choisissez une option --</option>
+        <option value="oui">Oui</option>
+        <option value="non">Non</option>
+        <option value="peut-être">Peut-être</option>
+      </select>
+    </div>
+  </fieldset>
+
+
+  
+  
+  <!-- ✅ Ce bloc DOIT être là -->
+  <div id="zones-container"></div>
+  <div id="memoire-content"></div>
+
+  
+  
+  
+
+  <fieldset class="purple">
+    <legend>🟪 Décrire une collaboration ou un lien</legend>
+  
+    <p id="collab-intro">
+      Connaissez-vous une ou plusieurs personne(s)/association(s)/organisme(s)... avec qui vous avez collaboré, partagé ou échangé autour de ce savoir-faire ?
+      Cela peut inclure des liens directs (travail ensemble) ou indirects (inspiration, transmission orale, etc.).
+    </p>
+
+    
+    <label for="collab_type">Est-ce ... :</label>
+    <select name="collab_type" id="collab_type" onchange="updateCollabFields()">
+      <option value="">-- Sélectionnez une option --</option>
+      <option value="personne">Une personne individuelle</option>
+      <option value="famille">Une famille ou un groupe de personnes</option>
+      <option value="association">Une association</option>
+      <option value="entreprise">Une entreprise</option>
+      <option value="collectif">Un collectif informel</option>
+      <option value="commune">Une commune ou institution publique</option>
+      <option value="autre">Autre (à préciser)</option>
+    </select><br><br>
+    
+    <div id="collab-fields-wrapper" style="display: none;">
+      <div id="collab_nom_section" style="margin-bottom: 10px;">
+        <label for="collab_nom" id="collab_nom_label">Nom et prénom de la personne :</label>
+        <input type="text" name="collab_nom" id="collab_nom" placeholder="Ex : Jean Dupont"><br>
+      </div>
+    
+      <div id="collab_extra_fields"></div>
+    
+      <label for="collab_description">Souhaitez-vous ajouter un souvenir ou une anecdote liée à cette collaboration ?</label>
+      <textarea name="collab_description" id="collab_description" rows="3" placeholder="Ex : Projet de restauration, formation partagée, souvenir marquant…"></textarea>
+    
+      <div id="collab-container"></div>
+      <button type="button" onclick="addCollab()">➕ Ajouter un lien avec une autre personne ou une autre entité</button>
+    </div>
+    
+  </fieldset>
+  
+  
+
+  <fieldset class="orange">
+    <legend>🟧 Selon vous, comment ce savoir-faire a-t-il évolué ?</legend>
+  
+    <p style="margin-top: 0;">
+      Avez-vous remarqué des changements dans les techniques, les outils, la transmission ou la perception de ce savoir-faire au fil du temps ?
+    </p>
+  
+    <p style="font-size: 0.9em; color: #666; font-style: italic; margin-bottom: 10px;">
+      Exemples : « Moins de jeunes intéressés », « Le ciment a remplacé la chaux », « Le savoir-faire s’est transmis par l’école », « Une restauration récente a changé les pratiques », etc.
+    </p>
+  
+    <textarea name="evenement" rows="3" placeholder="Décrivez ici les changements, continuités ou transformations que vous avez observés…"></textarea>
+  </fieldset>
+  
+
+  <fieldset class="brown">
+    <legend>🟫 Uploader une image, croquis ou photo en lien avec le savoir-faire</legend>
+    <input type="file" name="fichier_media" id="fichier_media_input">
+    <div id="preview_fichiers" style="margin-top: 10px;"></div>
+  </fieldset>
+
+  <input type="submit" value="Envoyer">
+</form>
+
+<script>
+
+  // Enregistre les états de chaque zone d’étude
+  const zoneEtudeState = {};
+  const zoneEtudePolygons = {};     // ex: { "map1-map": 3 }
+  const zoneEtudeLayers = {}; // Ex: { "memoire_map1-map_1": layerObject }
+  // Nouveau tableau pour stocker tous les polygones dessinés en GeoJSON
+  const geojsonZones = [];
+
+  
+// Fonction utilitaire pour ralentir l'exécution (anti-spam)
+  function debounce(fn, delay) {
+    let timeout;
+    return (...args) => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => fn(...args), delay);
+    };
+  }
+
+
+  const roleLabels = {
+    personne: {
+      pratique: "Je pratique (ou je pratiquais) ce savoir-faire",
+      etudie: "J’étudie (ou j’étudiais) ce savoir-faire",
+      lesdeux: "J’étudie (ou j'étudiais) et je pratique (ou je pratiquais) ce savoir-faire",
+      temoin: "Je ne le pratique (ni ne l'ai pratiqué) ni ne l’étudie (ni ne l'ai étudié) mais j'ai des informations à partager"
+    },
+    association: {
+      pratique: "L'association pratique (ou pratiquait) ce savoir-faire",
+      etudie: "L'association étudie (ou étudiait) ce savoir-faire",
+      lesdeux: "L'association étudie (ou étudiait) et pratique (pratiquait) ce savoir-faire",
+      temoin: "L'association ne le pratique (ni ne l'ai pratiqué) ni ne l’étudie (ni ne l'ai étudié) mais a des informations à partager"
+    },
+    entreprise: {
+      pratique: "L'entreprise pratique (ou pratiquait) ce savoir-faire",
+      etudie: "L'entreprise étudie (ou étudiait) ce savoir-faire",
+      lesdeux: "L'entreprise étudie et pratique",
+      temoin: "L'entreprise ne le pratique ni ne l’étudie"
+    },
+    famille: {
+      pratique: "La famille/Groupe pratique (ou pratiquait) ce savoir-faire",
+      etudie: "La famille/Groupe étudie (ou étudiait) ce savoir-faire",
+      lesdeux: "La famille/Groupe étudie et pratique",
+      temoin: "La famille/Groupe ne le pratique ni ne l’étudie"
+    },
+    collectif: {
+      pratique: "Le collectif pratique (ou pratiquait) ce savoir-faire",
+      etudie: "Le collectif étudie (ou étudiait) ce savoir-faire",
+      lesdeux: "Le collectif étudie et pratique",
+      temoin: "Le collectif ne le pratique ni ne l’étudie"
+    },
+    commune: {
+      pratique: "La commune/institution pratique (ou pratiquait) ce savoir-faire",
+      etudie: "La commune/institution étudie (ou étudiait) ce savoir-faire",
+      lesdeux: "La commune/institution étudie et pratique",
+      temoin: "La commune/institution ne le pratique ni ne l’étudie"
+    },
+    autre: {
+      pratique: "L'entité pratique (ou pratiquait) ce savoir-faire",
+      etudie: "L'entité étudie (ou étudiait) ce savoir-faire",
+      lesdeux: "L'entité étudie et pratique",
+      temoin: "L'entité ne le pratique ni ne l’étudie"
+    }
+  };
+
+  const collabIntroLabels = {
+  personne: "Connaissez-vous une ou plusieurs personnes avec qui vous avez collaboré, partagé ou échangé autour de ce savoir-faire ? Cela peut inclure des liens directs (travail ensemble) ou indirects (inspiration, transmission orale, etc.).",
+  famille: "Y a-t-il une ou plusieurs personnes avec qui votre famille a collaboré, partagé ou échangé autour de ce savoir-faire ?",
+  association: "Y a-t-il une ou plusieurs personnes ou structures avec qui votre association a collaboré, partagé ou échangé autour de ce savoir-faire ?",
+  entreprise: "Y a-t-il une ou plusieurs personnes ou structures avec qui votre entreprise a collaboré, partagé ou échangé autour de ce savoir-faire ?",
+  collectif: "Y a-t-il une ou plusieurs personnes ou groupes avec qui votre collectif a collaboré, partagé ou échangé autour de ce savoir-faire ?",
+  commune: "Y a-t-il eu des collaborations ou des échanges menés par votre commune autour de ce savoir-faire ?",
+  autre: "Y a-t-il eu des échanges ou des collaborations autour de ce savoir-faire ?"
+  };
+
+
+
+  function updateKnowledgeOptions(identityType) {
+    const roleSelect = document.getElementById("role");
+
+    // Réinitialise les options
+    roleSelect.innerHTML = `<option value="">-- Choisissez une option --</option>`;
+
+    if (!identityType || !roleLabels[identityType]) return;
+
+    const labels = roleLabels[identityType];
+    for (const [value, label] of Object.entries(labels)) {
+      const opt = document.createElement("option");
+      opt.value = value;
+      opt.textContent = label;
+      roleSelect.appendChild(opt);
+    }
+  }
+
+
+
+
+  function updateIdentityFields() {
+    const type = document.getElementById("type").value;
+    const label = document.getElementById("nomLabel");
+    const section = document.getElementById("nomSection");
+    const extra = document.getElementById("extraFields");
+
+    const labels = {
+      personne: "Nom de la personne :",
+      famille: "Nom de famille :",
+      association: "Nom de l'association :",
+      entreprise: "Nom de l'entreprise :",
+      collectif: "Nom du collectif :",
+      commune: "Nom de la commune / institution :",
+      autre: "Autre nom (à préciser) :"
+    };
+
+    label.innerText = labels[type] || "Je parle au nom de :";
+    section.style.display = type ? "block" : "none";
+
+    let html = "";
+
+    if (type === "personne") {
+      html += `
+        <label>Âge :</label><input type="text" name="age" placeholder="Ex : 52"><br>
+        <label for="user_lieu">Lieu de résidence (Recherchez et cliquez sur le lieu proposé) :</label>
+        <input type="text" name="user_lieu" id="user_lieu" placeholder="Commencez à taper un lieu...">
+        <div id="user_lieu_result" class="autocomplete-results"></div>
+        <div id="user_lieu_confirm" style="font-style: italic; color: green; margin-top: 5px;"></div>
+        <input type="hidden" name="user_lieu_lat" id="user_lieu_lat">
+        <input type="hidden" name="user_lieu_lon" id="user_lieu_lon">
+        <label>Métier ou activité :</label><input type="text" name="metier" placeholder="Ex : vigneron, maçon"><br>
+
+      `;
+    } else if (type === "famille") {
+      html += `
+        <label>Nombre de personnes :</label><input type="text" name="nb_personnes" placeholder="Ex : 3"><br>
+        <label for="user_lieu">Lieu de résidence (Recherchez et cliquez sur le lieu proposé) :</label>
+        <input type="text" name="user_lieu" id="user_lieu" placeholder="Commencez à taper un lieu...">
+        <div id="user_lieu_result" class="autocomplete-results"></div>
+        <div id="user_lieu_confirm" style="font-style: italic; color: green; margin-top: 5px;"></div>
+        <input type="hidden" name="user_lieu_lat" id="user_lieu_lat">
+        <input type="hidden" name="user_lieu_lon" id="user_lieu_lon">
+        <label>Liens entre les personnes :</label><input type="text" name="liens" placeholder="Ex: frères, cousines, collègues, amis"><br>
+        <label>Âge de chaque personne :</label><input type="text" name="ages_famille" placeholder="Ex: 25, 59, 63"><br>
+      `;
+    } else if (["association", "entreprise", "collectif"].includes(type)) {
+      html += `
+        <label>Année de création :</label><input type="text" name="annee" placeholder="Ex : 2012"><br>
+        <label>Nombre de membres :</label><input type="text" name="membres"><br>
+        <label>Type d’activités :</label><input type="text" name="activites"><br>
+        <label for="user_lieu">Zone ou territoire :</label>
+        <input type="text" name="user_lieu" id="user_lieu" placeholder="Commencez à taper un lieu...">
+        <div id="user_lieu_result" class="autocomplete-results"></div>
+        <div id="user_lieu_confirm" style="font-style: italic; color: green; margin-top: 5px;"></div>
+        <input type="hidden" name="user_lieu_lat" id="user_lieu_lat">
+        <input type="hidden" name="user_lieu_lon" id="user_lieu_lon">
+      `;
+    } else if (type === "commune") {
+      html += `
+        <label>Type d’activités ou mission :</label><input type="text" name="activites"><br>
+        <label for="user_lieu">Zone ou territoire :</label>
+        <input type="text" name="user_lieu" id="user_lieu" placeholder="Commencez à taper un lieu...">
+        <div id="user_lieu_result" class="autocomplete-results"></div>
+        <div id="user_lieu_confirm" style="font-style: italic; color: green; margin-top: 5px;"></div>
+        <input type="hidden" name="user_lieu_lat" id="user_lieu_lat">
+        <input type="hidden" name="user_lieu_lon" id="user_lieu_lon">
+      `;
+    }
+
+
+
+    
+
+    extra.innerHTML = html;
+
+    setTimeout(() => {
+      const lieuInput = document.getElementById("user_lieu");
+      if (lieuInput) {
+        const debouncedSearch = debounce(() => {
+          searchLocation(lieuInput, "user_lieu_result");
+        }, 400);
+        
+        lieuInput.addEventListener("input", debouncedSearch);
+        console.log("📎 Événement lié à #user_lieu avec debounce");
+      } else {
+        console.warn("❌ Impossible de trouver #user_lieu");
+      }
+    }, 50);
+
+    updateMemoireSection(); // 🔄 Met à jour la question globale selon le type
+
+    updateKnowledgeLabel(type);
+
+    updateKnowledgeOptions(type); // met à jour les options de "Que savez-vous..."
+
+    document.getElementById("role").addEventListener("change", updateTransmissionQuestion);
+
+
+    // Adapter dynamiquement le texte sur la collaboration
+    const collabIntro = document.getElementById("collab-intro");
+    if (collabIntro) {
+      collabIntro.textContent = collabIntroLabels[type] || collabIntroLabels["autre"];
+    }
+
+
+  }
+
+
+  function updateCollabFields() {
+    const type = document.getElementById("collab_type").value;
+    const wrapper = document.getElementById("collab-fields-wrapper");
+    wrapper.style.display = type ? "block" : "none";
+    const container = document.getElementById("collab_extra_fields");
+
+    // 🔄 Mise à jour du champ de nom
+    const nomLabel = document.getElementById("collab_nom_label");
+    const nomInput = document.getElementById("collab_nom");
+
+    const nomLabels = {
+      personne: "Nom et prénom de la personne :",
+      famille: "Nom de la famille ou du groupe :",
+      association: "Nom de l'association :",
+      entreprise: "Nom de l'entreprise :",
+      collectif: "Nom du collectif informel :",
+      commune: "Nom de la commune ou institution publique :",
+      autre: "Nom (ou précisez) :"
+    };
+
+    if (nomLabel && nomInput) {
+      nomLabel.innerText = nomLabels[type] || "Nom :";
+      nomInput.placeholder = nomLabels[type] || "Nom";
+    }
+
+    // 💬 Champs supplémentaires selon le type
+    let html = "";
+
+    // Tous sauf "autre" ont un champ lieu
+    if (type !== "autre" && type !== "") {
+      html += `
+        <label>Lieu de résidence ou territoire (Recherchez et cliquez sur le lieu proposé) :</label>
+        <input type="text" name="collab_lieu" id="collab_lieu" placeholder="Commencez à taper un lieu...">
+        <div id="collab_lieu_result" class="autocomplete-results"></div>
+        <div id="collab_lieu_confirm" style="font-style: italic; color: green; margin-top: 5px;"></div>
+        <input type="hidden" name="collab_lieu_lat" id="collab_lieu_lat">
+        <input type="hidden" name="collab_lieu_lon" id="collab_lieu_lon">
+      `;
+    }
+
+    if (type === "personne") {
+      html += `
+        <label>Âge :</label><input type="text" name="collab_age" placeholder="Ex : 52"><br>
+        <label>Métier ou activité :</label><input type="text" name="collab_metier" placeholder="Ex : maçon, vigneronne"><br>
+        <label>Implication dans le savoir-faire :</label><input type="text" name="collab_implication"><br>
+      `;
+    } else if (["association", "entreprise", "collectif"].includes(type)) {
+      html += `
+        <label>Année de création :</label><input type="text" name="collab_annee"><br>
+        <label>Nombre de membres :</label><input type="text" name="collab_membres"><br>
+        <label>Type d’activités :</label><input type="text" name="collab_activites"><br>
+      `;
+    } else if (type === "commune") {
+      html += `
+        <label>Type d’activités ou mission :</label><input type="text" name="collab_activites"><br>
+      `;
+
+
+
+    } else if (type === "autre") {
+      html += `
+        <label>Précisez :</label><input type="text" name="collab_autre"><br>
+      `;
+    }
+
+    container.innerHTML = html;
+
+    // 🔍 Autocomplete sur le champ lieu
+    setTimeout(() => {
+      const collabLieuInput = document.getElementById("collab_lieu");
+      if (collabLieuInput) {
+        const debouncedSearch = debounce(() => {
+          searchLocation(collabLieuInput, "collab_lieu_result");
+        }, 400);
+        collabLieuInput.addEventListener("input", debouncedSearch);
+        console.log("📎 Événement lié à #collab_lieu avec debounce");
+      }
+    }, 50);
+  }
+
+
+
+
+
+
+
+
+  function updateZones() {
+    const value = document.getElementById("role").value;
+    const container = document.getElementById("zones-container");
+    container.innerHTML = ""; // reset
+    updateTransmissionQuestion();
+
+
+    const options = {
+        pratique: [
+        {
+            label: "Zone d'apprentissage",
+            question: "Avez-vous appris ce savoir-faire à Lavaux ou dans la région ?",
+            intro: "Où apprenez-vous ou avez-vous appris ce savoir-faire ?"
+        },
+        {
+            label: "Zone de transmission",
+            question: "Avez-vous transmis ce savoir-faire à Lavaux ou dans sa région ?",
+            intro: "Où transmettez-vous ou avez-vous transmis ce savoir-faire ?"
+        },
+        {
+            label: "Zone de pratique",
+            question: "Est-ce que vous pratiquez (ou vous avez pratiqué) ce savoir-faire à Lavaux ou dans sa région ?",
+            intro: "Où pratiquez-vous ou avez-vous pratiqué ce savoir-faire ?"
+        }
+        ],
+        etudie: [
+        {
+            label: "Zone d'étude",
+            question: "Est-ce que les informations que vous avez sur ce savoir-faire correspondent à un lieu à Lavaux ou dans sa région ?",
+            intro: "À quel endroit correspond ces informations ?"
+        }
+        ],
+        lesdeux: [
+        {
+            label: "Zone d'apprentissage",
+            question: "Avez-vous appris ce savoir-faire à Lavaux ou dans la région ?",
+            intro: "Où apprenez-vous ou avez-vous appris ce savoir-faire ?"
+        },
+        {
+            label: "Zone de transmission",
+            question: "Avez-vous transmis ce savoir-faire à Lavaux ou dans sa région ?",
+            intro: "Où transmettez-vous ou avez-vous transmis ce savoir-faire ?"
+        },
+        {
+            label: "Zone de pratique",
+            question: "Est-ce que vous pratiquez (ou vous avez pratiqué) ce savoir-faire à Lavaux ou dans sa région ?",
+            intro: "Où pratiquez-vous ou avez-vous pratiqué ce savoir-faire ?"
+        },
+        {
+            label: "Zone d'étude",
+            question: "Est-ce que les informations que vous avez sur ce savoir-faire correspondent à un lieu à Lavaux ou dans sa région ?",
+            intro: "À quel endroit étudiez-vous ou avez-vous étudié ce savoir-faire ?"
+        }
+        ],
+        temoin: [
+        {
+            label: "Zone d'information",
+            question: "Est-ce que les informations que vous souhaitez transmettre concernent un lieu à Lavaux ou dans sa région ?",
+            intro: "À quel endroit correspond ces informations ?"
+        }
+        ]
+    };
+
+    if (!value || !options[value]) return;
+
+    options[value].forEach((item, index) => {
+        const id = `map${index}`;
+        container.innerHTML += `
+        <fieldset>
+            <legend>📍 ${item.label}</legend>
+            <label>${item.question}</label><br>
+            <select onchange="toggleMap(this, '${id}')">
+            <option value="non">Non</option>
+            <option value="oui">Oui</option>
+            </select>
+            <div id="${id}" style="display:none;">
+            <h4 style="margin-top: 15px;">${item.intro}</h4>
+            <p style="font-style: italic; color: #555; margin-top: 10px;">
+                Cliquez sur au moins 3 points sur la carte pour dessiner la zone concernée. Une fois la zone dessinée, sans bouger le curseur, cliquez deux fois dessus pour l'enregistrer.
+            </p>
+            <p style="font-style: italic; color: #555; margin-top: 10px;">
+                Si vous voulez dessiner d'autres zones, appuyez sur le petit polygone sur la gauche.
+            </p>
+            <div class="map" id="${id}-map"></div>
+            </div>
+            <div class="memoire-carte" id="memoire-${id}-map"></div>
+        </fieldset>
+        `;
+        // 🔁 Mémorise le type de zone réel selon le rôle en cours
+        mapIdToZoneType[`${id}-map`] = item.label.includes("information") ? "information" :
+                                      item.label.includes("étude") ? "etudie" :
+                                      item.label.includes("pratique") ? "pratique" :
+                                      item.label.includes("transmission") ? "transmission" :
+                                      item.label.includes("apprentissage") ? "apprentissage" :
+                                      "autre";
+
+        
+        setTimeout(() => initMap(`${id}-map`), 100);
+    });
+  }
+
+  
+
+
+
+  function toggleMap(selectEl, mapId) {
+    const div = document.getElementById(mapId);
+    const mapContainer = document.getElementById(mapId + "-map");
+    const fullMapId = mapId + "-map";
+
+    if (selectEl.value === "oui") {
+        div.style.display = "block";
+
+        // Redimensionne la carte après un petit délai
+        setTimeout(() => {
+        mapContainer._leaflet_map?.invalidateSize();
+        }, 200);
+
+        // ✅ On considère maintenant toutes les cartes comme mémorisables
+        zoneEtudeState[fullMapId] = true;
+        zoneEtudePolygons[fullMapId] = 0;
+        console.log(`[INIT] Zone active ${fullMapId} => 0 zones`);
+
+    } else {
+        div.style.display = "none";
+
+        if (zoneEtudeState.hasOwnProperty(fullMapId)) {
+        delete zoneEtudeState[fullMapId];
+        console.log(`[ZONE SUPPRIMÉE] ${fullMapId}`);
+        updateMemoireSection();
+        }
+    }
+  }
+
+  const mapIdToZoneType = {
+    "map0-map": "apprentissage",
+    "map1-map": "transmission",
+    "map2-map": "pratique",
+    "map3-map": "etudie",
+    "map4-map": "information"
+  };
+
+
+
+
+  function initMap(id) {
+    const map = L.map(id).setView([46.49, 6.73], 13);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    const drawnItems = new L.FeatureGroup().addTo(map);
+
+    const drawControl = new L.Control.Draw({
+        draw: {
+        polygon: {
+            allowIntersection: false,
+            showArea: true,
+            drawError: {
+            color: '#e74c3c',
+            message: "<strong>Attention :</strong> les polygones ne doivent pas se croiser !"
+            },
+            shapeOptions: {
+            color: '#3498db'
+            }
+        },
+        polyline: false,
+        rectangle: false,
+        circle: false,
+        marker: false,
+        circlemarker: false
+        },
+        edit: {
+        featureGroup: drawnItems,
+        edit: true,
+        remove: true
+        }
+    });
+
+    map.addControl(drawControl);
+
+    setTimeout(() => {
+        new L.Draw.Polygon(map, drawControl.options.draw.polygon).enable();
+    }, 200);
+
+    map.on('draw:created', function (e) {
+      drawnItems.addLayer(e.layer);
+
+      const geojson = e.layer.toGeoJSON();
+
+      // 🧠 Ajoute le type de zone correspondant à cette carte
+      const zoneType = mapIdToZoneType[id];
+      geojson.properties.zoneType = zoneType;
+
+      geojsonZones.push(geojson);
+
+      if (zoneEtudeState.hasOwnProperty(id)) {
+        zoneEtudePolygons[id] += 1;
+        const numero = zoneEtudePolygons[id];
+        const textareaId = `memoire_${id}_${numero}`;
+
+        zoneEtudeLayers[textareaId] = e.layer;
+        e.layer._memoireTextareaId = textareaId;
+      }
+
+      updateMemoireSection();
+    });
+
+
+
+
+
+    map.on('draw:deleted', function (e) {
+      if (!zoneEtudeState.hasOwnProperty(id)) return;
+
+      e.layers.eachLayer(layer => {
+        const textareaIdToRemove = Object.entries(zoneEtudeLayers).find(
+          ([key, storedLayer]) => storedLayer === layer
+        )?.[0];
+
+        if (textareaIdToRemove) {
+          const textarea = document.getElementById(textareaIdToRemove);
+          if (textarea) {
+            const fieldset = textarea.closest("fieldset");
+            if (fieldset) fieldset.remove();
+            console.log(`[SUPPRIMÉ] ${textareaIdToRemove}`);
+          }
+
+          // 💥 Supprime aussi le fieldset dans la div memo-memoire
+          const divMemoire = document.getElementById(`memoire-${id}`);
+          if (divMemoire) {
+            const fieldsets = divMemoire.querySelectorAll("fieldset");
+            fieldsets.forEach(fs => {
+              const label = fs.querySelector("label");
+              if (label && label.getAttribute("for") === textareaIdToRemove) {
+                fs.remove();
+              }
+            });
+          }
+
+          delete zoneEtudeLayers[textareaIdToRemove];
+        }
+      });
+
+      // Met à jour le comptage des zones restantes pour cette carte
+      zoneEtudePolygons[id] = Object.keys(zoneEtudeLayers)
+        .filter(key => key.startsWith(`memoire_${id}_`)).length;
+
+      updateMemoireSection();
+    });
+
+
+
+
+
+    map._container._leaflet_map = map;
+  }
+
+
+  function updateMemoireSection() {
+    const globalMemoire = document.getElementById("memoire-content");
+    if (!globalMemoire) {
+      console.warn("⛔️ Élément #memoire-content introuvable");
+      return;
+    }
+    globalMemoire.innerHTML = ""; // On recrée seulement le champ global libre
+
+    const cartes = document.querySelectorAll(".memoire-carte");
+    let interactionDétectée = false;
+
+    cartes.forEach((div) => {
+      const id = div.id.replace("memoire-", "");
+      const isActive = zoneEtudeState.hasOwnProperty(id);
+
+      // 🔎 Récupère les zones encore actives
+      const zoneKeys = Object.keys(zoneEtudeLayers).filter(k => k.startsWith(`memoire_${id}_`));
+
+      if (zoneKeys.length === 0 || !isActive) return;
+
+      interactionDétectée = true;
+
+      // Nettoie ce div avant de réinjecter les bonnes zones
+      div.innerHTML = "";
+
+      zoneKeys.forEach(textareaId => {
+        const numero = textareaId.split("_").pop();
+
+        const fieldset = document.createElement("fieldset");
+        fieldset.className = "blue";
+        fieldset.innerHTML = `
+          <legend>🟦 Souvenir en lien avec le savoir-faire</legend>
+          <label for="${textareaId}">Souvenirs en lien avec la zone d’étude n°${numero} :</label>
+          <textarea id="${textareaId}" name="${textareaId}" rows="3" placeholder="Décrivez ici votre souvenir, observation ou valeur liée à ce savoir-faire..."></textarea>
+        `;
+
+        div.appendChild(fieldset);
+
+        setTimeout(() => {
+          const textarea = document.getElementById(textareaId);
+          if (textarea && zoneEtudeLayers[textareaId]) {
+            textarea.addEventListener('focus', () => highlightZone(textareaId));
+            textarea.addEventListener('blur', () => {
+              zoneEtudeLayers[textareaId]?.setStyle({ color: '#3498db' });
+            });
+          }
+        }, 100);
+      });
+    });
+
+    // Texte global libre (s'il reste utile)
+    const type = document.getElementById("type")?.value;
+    const nom = document.getElementById("nom")?.value || "";
+
+    let globalLabel;
+
+    if (interactionDétectée) {
+      globalLabel = "🟦 Est-ce qu'il y aurait autre chose à raconter, transmettre ou confier autour de ce savoir-faire ?";
+    } else {
+      switch (type) {
+        case "personne":
+          globalLabel = "🟦 Qu’est-ce que ce savoir-faire signifie pour vous, au-delà du geste ou de la technique ?";
+          break;
+        case "famille":
+          globalLabel = "🟦 Que représente ce savoir-faire pour votre famille ou groupe ?";
+          break;
+        case "association":
+        case "entreprise":
+        case "collectif":
+        case "commune":
+          globalLabel = `🟦 Que représente ce savoir-faire pour ${nom.trim() ? nom : "votre structure"} ?`;
+          break;
+        default:
+          globalLabel = "🟦 Qu’est-ce que ce savoir-faire signifie pour vous, au-delà du geste ou de la technique ?";
+      }
+    }
+
+    globalMemoire.innerHTML = `
+      <fieldset class="blue">
+        <legend>${globalLabel}</legend>
+        <textarea name="memoire" rows="3" placeholder="Texte libre…"></textarea>
+      </fieldset>
+    `;
+  }
+
+
+
+
+
+
+
+
+
+
+
+    // Réinitialisation automatique de tous les menus déroulants au chargement de la page
+  window.addEventListener("DOMContentLoaded", () => {
+    const selects = document.querySelectorAll("select");
+    selects.forEach(select => {
+        select.selectedIndex = 0;
+    });
+
+    // Optionnel : cacher les cartes dessinées si elles sont visibles
+    const cartes = document.querySelectorAll("div[id^='map']");
+    cartes.forEach(carte => {
+        carte.style.display = "none";
+    });
+
+    // Cacher aussi les sous-sections de nom au démarrage
+    const nomSection = document.getElementById("nomSection");
+    if (nomSection) nomSection.style.display = "none";
+
+    // ➕ Affiche un champ mémoire libre dès le départ
+    updateMemoireSection();
+  });
+
+
+  function highlightZone(textareaId) {
+    // On remet les autres couleurs à la normale
+    Object.values(zoneEtudeLayers).forEach(layer => {
+        layer.setStyle({ color: '#3498db' }); // bleu par défaut
+    });
+
+    const layer = zoneEtudeLayers[textareaId];
+    if (layer) {
+        layer.setStyle({ color: 'red' });
+        console.log(`[HIGHLIGHT] ${textareaId}`);
+    }
+  }
+
+  let debounceTimeout;
+
+  
+
+  function searchLocation(inputEl, resultContainerId) {
+    const query = inputEl.value;
+    const resultContainer = document.getElementById(resultContainerId);
+
+    if (!resultContainer) {
+      console.error(`❌ Impossible de trouver #${resultContainerId}`);
+      return;
+    }
+
+    // Masquer la boîte par défaut
+    resultContainer.style.display = "none";
+
+    // Si moins d'une lettre, on ne fait rien
+    if (query.length < 1) {
+      resultContainer.innerHTML = "";
+      return;
+    }
+
+    // Debounce : attendre que l'utilisateur ait fini de taper
+    clearTimeout(debounceTimeout);
+    debounceTimeout = setTimeout(() => {
+      console.log("📡 Recherche de lieu : ", query);
+
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1&email=grob.j1890@gmail.com`)
+        .then(res => res.json())
+        .then(data => {
+          resultContainer.innerHTML = "";
+
+          if (!data || data.length === 0) {
+            console.warn("❌ Aucun résultat");
+            resultContainer.style.display = "none";
+            return;
+          }
+
+          resultContainer.style.display = "block"; // Affiche la boîte
+
+          data.forEach(place => {
+            const option = document.createElement("div");
+            option.className = "autocomplete-option";
+            option.textContent = place.display_name;
+
+            option.onclick = () => {
+              inputEl.value = place.display_name;
+              resultContainer.innerHTML = "";
+              resultContainer.style.display = "none";
+
+              // Injection des coordonnées
+              const baseId = inputEl.id.replace(/_lieu$/, ""); // ex: "user" ou "collab"
+              const latInput = document.getElementById(`${baseId}_lieu_lat`);
+              const lonInput = document.getElementById(`${baseId}_lieu_lon`);
+              const confirmBox = document.getElementById(`${baseId}_lieu_confirm`);
+
+              if (latInput && lonInput) {
+                latInput.value = place.lat;
+                lonInput.value = place.lon;
+                console.log("✅ Coordonnées enregistrées");
+              }
+
+              if (confirmBox) {
+                confirmBox.innerHTML = `✅ Lieu sélectionné : <strong>${place.display_name}</strong><br>
+                🌍 Coordonnées : ${parseFloat(place.lat).toFixed(5)}, ${parseFloat(place.lon).toFixed(5)}`;
+              }
+            };
+
+            resultContainer.appendChild(option);
+          });
+        })
+        .catch(error => {
+          console.error("💥 Erreur lors de l'appel à Nominatim :", error);
+        });
+
+    }, 400); // attendre 400ms après la dernière frappe
+  }
+
+
+
+
+
+
+  let collabCount = 0;
+
+  function addCollab() {
+    collabCount++;
+    const container = document.getElementById("collab-container");
+    const blockId = `collab_block_${collabCount}`;
+
+    const html = `
+      <div class="collab-block" id="${blockId}" style="border: 1px solid #ccc; padding: 15px; margin-top: 15px; border-radius: 8px;">
+        <label>Quel est le type de cette personne ou entité ?</label>
+        <select name="collab_type_${collabCount}" id="collab_type_${collabCount}" onchange="updateDynamicCollabFields(this, ${collabCount})">
+          <option value="">-- Sélectionnez une option --</option>
+          <option value="personne">Une personne individuelle</option>
+          <option value="famille">Une famille ou un groupe</option>
+          <option value="association">Une association</option>
+          <option value="entreprise">Une entreprise</option>
+          <option value="collectif">Un collectif informel</option>
+          <option value="commune">Une commune ou institution publique</option>
+          <option value="autre">Autre (à préciser)</option>
+        </select>
+
+        <div id="collab_nom_section_${collabCount}" style="margin-top: 10px;">
+          <label id="collab_nom_label_${collabCount}">Nom :</label>
+          <input type="text" name="collab_nom_${collabCount}" placeholder="Nom ou structure">
+        </div>
+
+        <div id="collab_extra_fields_${collabCount}" style="margin-top: 10px;"></div>
+
+        <label>Souvenir ou anecdote liée à cette collaboration :</label>
+        <textarea name="collab_description_${collabCount}" rows="3" placeholder="Ex : Projet commun, souvenir, échange..."></textarea>
+      </div>
+    `;
+
+    container.insertAdjacentHTML("beforeend", html);
+
+    // Déclenche le champ dynamique automatiquement si déjà choisi
+    setTimeout(() => {
+      const select = document.getElementById(`collab_type_${collabCount}`);
+      if (select) {
+        updateDynamicCollabFields(select, collabCount);
+      }
+    }, 50);
+  }
+
+
+  function updateDynamicCollabFields(selectEl, index) {
+    const type = selectEl.value;
+    const target = document.getElementById(`collab_extra_fields_${index}`);
+    const nomLabel = document.getElementById(`collab_nom_label_${index}`);
+    const nomInput = document.querySelector(`input[name="collab_nom_${index}"]`);
+
+    const nomLabels = {
+      personne: "Nom et prénom de la personne :",
+      famille: "Nom de la famille ou du groupe :",
+      association: "Nom de l'association :",
+      entreprise: "Nom de l'entreprise :",
+      collectif: "Nom du collectif informel :",
+      commune: "Nom de la commune ou institution publique :",
+      autre: "Nom (ou précisez) :"
+    };
+
+    if (nomLabel && nomInput) {
+      nomLabel.innerText = nomLabels[type] || "Nom :";
+      nomInput.placeholder = nomLabels[type] || "Nom";
+    }
+
+    let html = "";
+
+    // Champ lieu + coordonnées
+    if (type !== "autre" && type !== "") {
+      html += `
+        <label>Lieu de résidence ou territoire (Recherchez et cliquez sur le lieu proposé) :</label>
+        <input type="text" id="collab_${index}_lieu" placeholder="Commencez à taper un lieu...">
+        <div id="collab_${index}_lieu_result" class="autocomplete-results"></div>
+        <div id="collab_${index}_lieu_confirm" style="font-style: italic; color: green; margin-top: 5px;"></div>
+        <input type="hidden" name="collab_${index}_lieu_lat" id="collab_${index}_lieu_lat">
+        <input type="hidden" name="collab_${index}_lieu_lon" id="collab_${index}_lieu_lon">
+      `;
+    }
+
+    // Champs selon le type
+    if (type === "personne") {
+      html += `
+        <label>Âge :</label><input type="text" name="collab_age_${index}" placeholder="Ex : 52">
+        <label>Métier ou activité :</label><input type="text" name="collab_metier_${index}">
+        <label>Implication dans le savoir-faire :</label><input type="text" name="collab_implication_${index}">
+      `;
+    } else if (type === "famille") {
+      html += `
+        <label>Nombre de personnes :</label><input type="text" name="collab_nb_personnes_${index}">
+        <label>Liens entre eux :</label><input type="text" name="collab_liens_${index}">
+        <label>Âges :</label><input type="text" name="collab_ages_famille_${index}" placeholder="Ex : 40, 45, 18">
+      `;
+    } else if (["association", "entreprise", "collectif"].includes(type)) {
+      html += `
+        <label>Année de création :</label><input type="text" name="collab_annee_${index}">
+        <label>Nombre de membres :</label><input type="text" name="collab_membres_${index}">
+        <label>Type d’activités :</label><input type="text" name="collab_activites_${index}">
+      `;
+    } else if (type === "commune") {
+      html += `
+        <label>Type d’activités ou mission :</label><input type="text" name="collab_activites_${index}">
+      `;
+    } else if (type === "autre") {
+      html += `<label>Précisez :</label><input type="text" name="collab_autre_${index}">`;
+    }
+
+    target.innerHTML = html;
+
+    // Active l’autocomplétion sur le champ lieu
+    setTimeout(() => {
+      const input = document.getElementById(`collab_${index}_lieu`);
+      if (input) {
+        input.addEventListener("input", debounce(() => {
+          searchLocation(input, `collab_${index}_lieu_result`);
+        }, 400));
+      }
+    }, 50);
+  }
+
+  function updateKnowledgeLabel(type) {
+    const roleLabel = document.getElementById("roleLabel");
+    if (!roleLabel) return;
+
+    const typeLabels = {
+      personne: "Sélectionnez votre lien personnel avec ce savoir-faire :",
+      famille: "Sélectionnez le lien de votre famille ou groupe avec ce savoir-faire :",
+      association: "Sélectionnez le lien de l'association avec ce savoir-faire :",
+      entreprise: "Sélectionnez le lien de l'entreprise avec ce savoir-faire :",
+      collectif: "Sélectionnez le lien du collectif avec ce savoir-faire :",
+      commune: "Sélectionnez le lien de la commune / institution avec ce savoir-faire :",
+      autre: "Sélectionnez le lien de cette entité avec ce savoir-faire :",
+      "": "Sélectionnez votre lien avec ce savoir-faire :"
+    };
+
+    roleLabel.innerText = typeLabels[type] || typeLabels[""];
+  }
+
+  function updateTransmissionQuestion() {
+    const role = document.getElementById("role").value;
+    const container = document.getElementById("intention-transmission");
+    const label = document.getElementById("transmission-label");
+
+    if (!container || !label) return;
+
+    // Afficher uniquement si un rôle est sélectionné
+    if (!role) {
+      container.style.display = "none";
+      return;
+    }
+
+    const labelByRole = {
+      pratique: "A titre, indicatif, si vous aviez l’occasion de transmettre régulièrement vos gestes, pratiques ou connaissances à d’autres personnes, le feriez-vous ?",
+      lesdeux: "A titre, indicatif, si vous aviez l’occasion de transmettre régulièrement à la fois vos gestes et vos connaissances à d’autres personnes, le feriez-vous ?",
+      etudie: "A titre, indicatif, si vous aviez l’occasion de transmettre régulièrement ce que vous avez appris ou compris sur ce savoir-faire, le feriez-vous ?",
+      temoin: "A titre, indicatif, si vous aviez l’occasion de partager régulièrement vos connaissance sur ce savoir-faire avec d’autres personnes, le feriez-vous ?"
+    };
+
+    label.textContent = labelByRole[role] || "Souhaitez-vous transmettre ce savoir-faire ?";
+    container.style.display = "block";
+  }
+
+
+
+
+  document.getElementById("participation-form").addEventListener("submit", async function (e) {
+    e.preventDefault();
+
+    const form = this;
+    const formData = new FormData(form);
+    const data = {};
+
+    // Ajoute tous les champs simples (sauf fichier_media)
+    formData.forEach((value, key) => {
+      if (key === "fichier_media") return;
+      if (value === "true") {
+        data[key] = true;
+      } else if (value === "false") {
+        data[key] = false;
+      } else if (!isNaN(value) && value.trim() !== "") {
+        data[key] = Number(value);
+      } else {
+        data[key] = value;
+      }
+    });
+
+    if (formData.get("transmission_intention")) {
+      data.transmission_intention = formData.get("transmission_intention");
+    }
+
+
+    // Ajoute les zones dessinées (GeoJSON)
+    if (geojsonZones.length > 0) {
+      data["zones_geojson"] = JSON.stringify(geojsonZones);
+    }
+
+    // 🔁 Ajoute toutes les collaborations dynamiques
+    const collaborations = [];
+
+    for (let i = 1; i <= collabCount; i++) {
+      const nom = form.querySelector(`[name="collab_nom_${i}"]`)?.value?.trim();
+      const type = form.querySelector(`[name="collab_type_${i}"]`)?.value?.trim();
+      const description = form.querySelector(`[name="collab_description_${i}"]`)?.value?.trim();
+
+      if (!nom || !type) continue;
+
+      const collabData = {
+        nom,
+        type,
+        description: description || ""
+      };
+
+      // Lieu et coordonnées
+      const lieu = form.querySelector(`#collab_${i}_lieu`)?.value?.trim();
+      const lat = form.querySelector(`#collab_${i}_lieu_lat`)?.value;
+      const lon = form.querySelector(`#collab_${i}_lieu_lon`)?.value;
+      if (lieu) {
+        collabData.lieu = lieu;
+        collabData.lat = lat;
+        collabData.lon = lon;
+      }
+
+      // Infos selon le type
+      if (type === "personne") {
+        collabData.age = form[`collab_age_${i}`]?.value;
+        collabData.metier = form[`collab_metier_${i}`]?.value;
+        collabData.implication = form[`collab_implication_${i}`]?.value;
+      } else if (["association", "entreprise", "collectif"].includes(type)) {
+        collabData.annee = form[`collab_annee_${i}`]?.value;
+        collabData.membres = form[`collab_membres_${i}`]?.value;
+        collabData.activites = form[`collab_activites_${i}`]?.value;
+      } else if (type === "commune") {
+        collabData.activites = form[`collab_activites_${i}`]?.value;
+      } else if (type === "famille") {
+        collabData.nb_personnes = form[`collab_nb_personnes_${i}`]?.value;
+        collabData.liens = form[`collab_liens_${i}`]?.value;
+        collabData.ages_famille = form[`collab_ages_famille_${i}`]?.value;
+      } else if (type === "autre") {
+        collabData.autre = form[`collab_autre_${i}`]?.value;
+      }
+
+      collaborations.push(collabData);
+    }
+
+    // ✅ On convertit le tableau en string pour Baserow
+    data.collaborations_dynamiques = JSON.stringify(collaborations);
+
+    try {
+      // Gérer l'upload fichier (si présent)
+      const fileInput = form.querySelector('input[name="fichier_media"]');
+      const files = selectedFile ? [selectedFile] : [];
+
+      if (files.length > 0) {
+        const uploadForm = new FormData();
+        uploadForm.append("file", files[0]);
+
+        const uploadResponse = await fetch("https://api.baserow.io/api/user-files/upload-file/", {
+          method: "POST",
+          headers: {
+            Authorization: "Token oF4ZhbO62oPoeUpVVrbjCuf8s3Jaxe3v"
+          },
+          body: uploadForm
+        });
+
+        if (!uploadResponse.ok) {
+          const errorText = await uploadResponse.text();
+          throw new Error("Erreur lors de l’upload fichier : " + errorText);
+        }
+
+        const uploadResult = await uploadResponse.json();
+        data["fichier_media"] = [{
+          value: uploadResult.id,
+          name: uploadResult.name
+        }];
+      }
+
+      // Envoi des données complètes à Baserow
+      const response = await fetch("https://api.baserow.io/api/database/rows/table/510775/?user_field_names=true", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Token oF4ZhbO62oPoeUpVVrbjCuf8s3Jaxe3v"
+        },
+        body: JSON.stringify(data)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Erreur API : ${response.status} – ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log("✅ Succès :", result);
+      alert("✅ Merci ! Vos données ont bien été enregistrées.");
+      // 🔄 Réinitialise tous les tableaux et objets de cartes (zones)
+      geojsonZones.length = 0;
+      Object.keys(zoneEtudeState).forEach(key => delete zoneEtudeState[key]);
+      Object.keys(zoneEtudePolygons).forEach(key => delete zoneEtudePolygons[key]);
+      Object.keys(zoneEtudeLayers).forEach(key => delete zoneEtudeLayers[key]);
+      this.reset();
+      previewDiv.innerHTML = "";
+      selectedFile = null;
+    } catch (error) {
+      console.error("❌ Une erreur est survenue :", error);
+      alert("❌ Une erreur est survenue : " + error.message);
+    }
+  });
+
+
+
+  const fichierInput = document.getElementById("fichier_media_input");
+  const previewDiv = document.getElementById("preview_fichiers");
+
+  let selectedFile = null;
+
+  fichierInput.addEventListener("change", function () {
+    const file = fichierInput.files[0];
+
+    previewDiv.innerHTML = "";
+
+    if (file) {
+      selectedFile = file;
+
+      const fileElement = document.createElement("div");
+      fileElement.style.display = "flex";
+      fileElement.style.justifyContent = "space-between";
+      fileElement.style.alignItems = "center";
+      fileElement.style.background = "#f0f0f0";
+      fileElement.style.padding = "6px 10px";
+      fileElement.style.borderRadius = "6px";
+
+      fileElement.innerHTML = `
+        <span>📎 ${file.name}</span>
+        <button type="button" style="background: #e74c3c; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer;">
+          Supprimer
+        </button>
+      `;
+
+      fileElement.querySelector("button").addEventListener("click", () => {
+        fichierInput.value = "";
+        selectedFile = null;
+        previewDiv.innerHTML = "";
+      });
+
+      previewDiv.appendChild(fileElement);
+    }
+  });
+
+
+
+
+</script>
+
+</body>
+</html>
