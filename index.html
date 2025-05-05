@@ -90,6 +90,32 @@
 
 <h1> Le savoir-faire traditionnel lié à la construction et l'entretien des murs de vignes à Lavaux</h1>
 
+<section style="background-color: #eef6f4; border-left: 6px solid #2ecc71; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
+  <h2 style="margin-top: 0;">📜 Contexte patrimonial : les murs de vigne à Lavaux</h2>
+  <p>
+    Inscrit en 2007 au patrimoine mondial de l’UNESCO, le vignoble en terrasses à Lavaux est l’un des paysages culturels les plus emblématiques de Suisse. Il est soutenu par un impressionnant réseau de 450 kilomètres de murs de vigne, construits à la main au fil des siècles. Ces murs, réalisés en pierres naturelles et liés par des mortiers traditionnels, permettent la culture viticole sur des pentes abruptes tout en régulant les eaux de ruissellement. 
+  </p>
+  <p>
+    Leur construction et leur entretien mobilisent un savoir-faire spécifique, transmis au fil des générations, et aujourd’hui reconnu comme un élément essentiel du patrimoine culturel immatériel (PCI) du territoire. Ce savoir-faire, pourtant, est fragilisé : la rareté des praticiens, le vieillissement des artisans, la méconnaissance des techniques traditionnelles et les mutations économiques mettent en péril la transmission de ces pratiques.
+  </p>
+  <p>
+    C’est dans ce contexte que s’inscrit ce questionnaire de cartographie participative. Son objectif est de :
+    <ul>
+      <li>Identifier les personnes, les groupes ou les institutions qui détiennent un savoir, une mémoire, une compétence ou une expérience liée à ce savoir-faire ;</li>
+      <li>Constituer un réseau d’acteurs impliqués ou intéressés par la sauvegarde et la transmission de ces pratiques ;</li>
+      <li>Cartographier collectivement les lieux, les récits et les usages où ce savoir-faire a été, est ou pourrait être transmis, pratiqué ou valorisé.</li>
+    </ul>
+  </p>
+  <p>
+    Cette initiative s’inscrit dans une démarche de préservation active du PCI, où la parole, les pratiques et les expériences des habitants et des acteurs de Lavaux ont un rôle central. Elle contribue à mieux comprendre comment ce patrimoine vivant évolue, se transmet ou se transforme aujourd’hui.
+  </p>
+  <p style="font-style: italic; color: #555;">
+    Source : <a href="https://www.lavaux-unesco.ch" target="_blank">Lavaux Patrimoine mondial</a>
+  </p>
+</section>
+
+
+
 <form id="participation-form">
 
 
@@ -215,6 +241,8 @@
 </form>
 
 <script>
+  const drawnItemsMap = {}; // Clé : mapId, valeur : FeatureGroup
+
 
   // Enregistre les états de chaque zone d’étude
   const zoneEtudeState = {};
@@ -581,14 +609,32 @@
             <option value="non">Non</option>
             <option value="oui">Oui</option>
             </select>
+
+            
+            <!-- 🔽 AJOUTER ICI LA NOUVELLE INTERFACE DE CHOIX DE ZONE -->
+            <div id="${id}-selector" style="display:none; margin-top: 15px;">
+
+
+
+
+
             <div id="${id}" style="display:none;">
             <h4 style="margin-top: 15px;">${item.intro}</h4>
-            <p style="font-style: italic; color: #555; margin-top: 10px;">
-                Cliquez sur au moins 3 points sur la carte pour dessiner la zone concernée. Une fois la zone dessinée, sans bouger le curseur, cliquez deux fois dessus pour l'enregistrer.
-            </p>
-            <p style="font-style: italic; color: #555; margin-top: 10px;">
+              <p>Souhaitez-vous utiliser une zone déjà définie ou dessiner la vôtre ?</p>
+              <div style="margin-bottom:10px;">
+                <button type="button" onclick="loadLavauxPolygon('${id}-map', 'centrale')">✅ Utiliser uniquement la zone centrale</button>
+                <button type="button" onclick="loadLavauxPolygon('${id}-map', 'tampon_centrale')">✅ Utiliser zone centrale + tampon</button>
+                <button type="button" onclick="enableCustomDrawing('${id}-map')">✏️ Dessiner une ou plusieurs zones moi-même</button>
+              </div>
+            <div id="${id}-drawing-instructions" style="display: none;">
+              <p style="font-style: italic; color: #555; margin-top: 10px;">
+                Cliquez sur au moins 3 points sur la carte pour dessiner la zone concernée...
+              </p>
+              <p style="font-style: italic; color: #555; margin-top: 10px;">
                 Si vous voulez dessiner d'autres zones, appuyez sur le petit polygone sur la gauche.
-            </p>
+              </p>
+            </div>
+
             <div class="map" id="${id}-map"></div>
             </div>
             <div class="memoire-carte" id="memoire-${id}-map"></div>
@@ -614,29 +660,27 @@
   function toggleMap(selectEl, mapId) {
     const div = document.getElementById(mapId);
     const mapContainer = document.getElementById(mapId + "-map");
+    const selector = document.getElementById(mapId + "-selector");
     const fullMapId = mapId + "-map";
 
     if (selectEl.value === "oui") {
-        div.style.display = "block";
+      div.style.display = "block";
+      selector.style.display = "block";
 
-        // Redimensionne la carte après un petit délai
-        setTimeout(() => {
+      setTimeout(() => {
         mapContainer._leaflet_map?.invalidateSize();
-        }, 200);
+      }, 200);
 
-        // ✅ On considère maintenant toutes les cartes comme mémorisables
-        zoneEtudeState[fullMapId] = true;
-        zoneEtudePolygons[fullMapId] = 0;
-        console.log(`[INIT] Zone active ${fullMapId} => 0 zones`);
-
+      zoneEtudeState[fullMapId] = true;
+      zoneEtudePolygons[fullMapId] = 0;
     } else {
-        div.style.display = "none";
+      div.style.display = "none";
+      selector.style.display = "none";
 
-        if (zoneEtudeState.hasOwnProperty(fullMapId)) {
+      if (zoneEtudeState.hasOwnProperty(fullMapId)) {
         delete zoneEtudeState[fullMapId];
-        console.log(`[ZONE SUPPRIMÉE] ${fullMapId}`);
         updateMemoireSection();
-        }
+      }
     }
   }
 
@@ -654,11 +698,29 @@
   function initMap(id) {
     const map = L.map(id).setView([46.49, 6.73], 13);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
+    fetch("https://raw.githubusercontent.com/JosephGrob/lavaux-cartographie/main/lavaux_perimetre.geojson")
+      .then(response => response.json())
+      .then(data => {
+        L.geoJSON(data, {
+          style: function(feature) {
+            // Adapte selon le nom du champ dans tes propriétés (ex : 'zone')
+            const type = feature.properties.zone || 'centrale'; 
+            return {
+              color: type === 'tampon' ? '#f39c12' : '#d35400',
+              weight: 2,
+              fillOpacity: 0.2
+            };
+          }
+        }).addTo(map);
+      });
+
+
     const drawnItems = new L.FeatureGroup().addTo(map);
+    drawnItemsMap[id] = drawnItems;
 
     const drawControl = new L.Control.Draw({
         draw: {
@@ -1327,10 +1389,124 @@
     }
   });
 
+  function loadLavauxPolygon(mapId, type) {
+    resetMapInteractions(mapId); // Nettoie tout
 
+    const map = document.getElementById(mapId)._leaflet_map;
+    if (!map) return;
+
+    fetch("https://raw.githubusercontent.com/JosephGrob/lavaux-cartographie/main/lavaux_perimetre.geojson")
+      .then(res => res.json())
+      .then(data => {
+        L.geoJSON(data, {
+          filter: function (feature) {
+            if (type === "centrale") {
+              return feature.properties.zone === "centrale";
+            } else if (type === "tampon_centrale") {
+              return true; // les deux zones
+            }
+            return false;
+          },
+          style: function (feature) {
+            const zone = feature.properties.zone || 'centrale';
+            return {
+              color: zone === 'tampon' ? '#f39c12' : '#d35400',
+              weight: 2,
+              fillOpacity: 0.2
+            };
+          }
+        }).addTo(map);
+      });
+  }
+
+
+  function enableCustomDrawing(mapId) {
+    // Masque toute autre interaction ou couche et nettoie partiellement la carte
+    resetMapInteractions(mapId);
+
+    // Affiche les instructions de dessin
+    const instructions = document.getElementById(`${mapId}-drawing-instructions`);
+    if (instructions) instructions.style.display = "block";
+
+    // Récupère la carte Leaflet
+    const map = document.getElementById(mapId)._leaflet_map;
+    if (!map) return;
+
+    // Récupère ou crée le groupe de calques pour les polygones
+    let drawnItems = drawnItemsMap[mapId];
+    if (!drawnItems) {
+      drawnItems = new L.FeatureGroup().addTo(map);
+      drawnItemsMap[mapId] = drawnItems;
+    }
+
+    // Ajoute le groupe de dessins s’il n’est pas déjà sur la carte
+    if (!map.hasLayer(drawnItems)) {
+      map.addLayer(drawnItems);
+    }
+
+    // Active immédiatement l’outil de dessin
+    const drawPolygon = new L.Draw.Polygon(map, {
+      allowIntersection: false,
+      showArea: true,
+      shapeOptions: {
+        color: '#3498db'
+      }
+    });
+
+    drawPolygon.enable();
+  }
+
+
+
+  function resetMapInteractions(mapId) {
+    const instructions = document.getElementById(`${mapId}-drawing-instructions`);
+    if (instructions) instructions.style.display = "none";
+
+    const map = document.getElementById(mapId)._leaflet_map;
+    if (!map) return;
+
+    // Supprime tous les calques sauf le fond de carte
+    map.eachLayer(layer => {
+      if (!(layer instanceof L.TileLayer)) {
+        map.removeLayer(layer);
+      }
+    });
+
+    // Réajoute le fond de carte
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Supprime les polygones mémorisés pour cette carte
+    Object.keys(zoneEtudeLayers).forEach(key => {
+      if (key.startsWith(`memoire_${mapId}_`)) {
+        delete zoneEtudeLayers[key];
+      }
+    });
+
+    // Supprime les souvenirs visibles pour cette carte
+    const divMemoire = document.getElementById(`memoire-${mapId}`);
+    if (divMemoire) {
+      divMemoire.innerHTML = "";
+    }
+
+    // Supprime les geojson associés à cette carte
+    for (let i = geojsonZones.length - 1; i >= 0; i--) {
+      if (geojsonZones[i].properties?.zoneType === mapIdToZoneType[mapId]) {
+        geojsonZones.splice(i, 1);
+      }
+    }
+
+    // Réinitialise les compteurs
+    zoneEtudePolygons[mapId] = 0;
+    zoneEtudeState[mapId] = true;
+
+    updateMemoireSection();
+  }
 
 
 </script>
 
 </body>
 </html>
+
