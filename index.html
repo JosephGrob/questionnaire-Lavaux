@@ -170,8 +170,10 @@
   
   <!-- ✅ Ce bloc DOIT être là -->
   <div id="zones-container"></div>
-  <div id="memoire-content"></div>
-
+  <div id="memoire-content">
+    <div id="memoire-zones"></div> <!-- Pour les zones -->
+  </div>
+  
   
   
   
@@ -250,6 +252,21 @@
   const zoneEtudeLayers = {}; // Ex: { "memoire_map1-map_1": layerObject }
   // Nouveau tableau pour stocker tous les polygones dessinés en GeoJSON
   const geojsonZones = [];
+  const pointLayers = {}; // textareaId => marker
+
+  const defaultIcon = L.icon({
+    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34]
+  });
+
+  const highlightIcon = L.icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34]
+  });
 
   
 // Fonction utilitaire pour ralentir l'exécution (anti-spam)
@@ -620,11 +637,16 @@
 
             <div id="${id}" style="display:none;">
             <h4 style="margin-top: 15px;">${item.intro}</h4>
-              <p>Souhaitez-vous utiliser une zone déjà définie ou dessiner la vôtre ?</p>
+              <p>Choisissez une ou plusieurs options parmis :</p>
               <div style="margin-bottom:10px;">
-                <button type="button" onclick="loadLavauxPolygon('${id}-map', 'centrale')">✅ Utiliser uniquement la zone centrale</button>
-                <button type="button" onclick="loadLavauxPolygon('${id}-map', 'tampon_centrale')">✅ Utiliser zone centrale + tampon</button>
-                <button type="button" onclick="enableCustomDrawing('${id}-map')">✏️ Dessiner une ou plusieurs zones moi-même</button>
+                <button type="button" onclick="loadLavauxPolygon('${id}-map', 'centrale')">la Zone centrale (Lavaux)</button>
+                <button type="button" onclick="loadLavauxPolygon('${id}-map', 'tampon_centrale')">La zone centrale et la zone tampon (Lavaux)</button>
+                <button type="button" id="${id}-btn-zone" onclick="enableCustomDrawing('${id}-map')">✏️ Dessiner une ou plusieurs zones moi-même</button>
+                <button type="button" id="${id}-btn-point" onclick="enableMapClick('${id}-map')">📍 Cliquer sur la carte pour montrer un lieu précis</button>
+                <div id="${id}-interaction-help" style="margin-top:10px; font-style: italic; color: #555;"></div>
+
+
+ 
               </div>
             <div id="${id}-drawing-instructions" style="display: none;">
               <p style="font-style: italic; color: #555; margin-top: 10px;">
@@ -697,58 +719,24 @@
 
   function initMap(id) {
     const map = L.map(id).setView([46.49, 6.73], 13);
+    
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-    fetch("https://raw.githubusercontent.com/JosephGrob/lavaux-cartographie/main/lavaux_perimetre.geojson")
-      .then(response => response.json())
-      .then(data => {
-        L.geoJSON(data, {
-          style: function(feature) {
-            // Adapte selon le nom du champ dans tes propriétés (ex : 'zone')
-            const type = feature.properties.zone || 'centrale'; 
-            return {
-              color: type === 'tampon' ? '#f39c12' : '#d35400',
-              weight: 2,
-              fillOpacity: 0.2
-            };
-          }
-        }).addTo(map);
-      });
-
-
     const drawnItems = new L.FeatureGroup().addTo(map);
     drawnItemsMap[id] = drawnItems;
 
     const drawControl = new L.Control.Draw({
-        draw: {
-        polygon: {
-            allowIntersection: false,
-            showArea: true,
-            drawError: {
-            color: '#e74c3c',
-            message: "<strong>Attention :</strong> les polygones ne doivent pas se croiser !"
-            },
-            shapeOptions: {
-            color: '#3498db'
-            }
-        },
-        polyline: false,
-        rectangle: false,
-        circle: false,
-        marker: false,
-        circlemarker: false
-        },
-        edit: {
+      edit: {
         featureGroup: drawnItems,
-        edit: true,
         remove: true
-        }
+      },
+      draw: false // on ne veut pas réactiver le dessin ici
     });
-
     map.addControl(drawControl);
+
 
     setTimeout(() => {
         new L.Draw.Polygon(map, drawControl.options.draw.polygon).enable();
@@ -758,6 +746,33 @@
       drawnItems.addLayer(e.layer);
 
       const geojson = e.layer.toGeoJSON();
+
+      if (geojson.geometry.type === "Point") {
+        const zoneType = mapIdToZoneType[id] || "point";
+        geojson.properties.zoneType = zoneType;
+
+        geojsonZones.push(geojson);
+
+        // Ajout d’un champ mémoire unique
+        const divMemoire = document.getElementById(`memoire-${id}`);
+        if (divMemoire) {
+          const pointIndex = geojsonZones.filter(z => z.geometry.type === "Point").length;
+          const textareaId = `memoire_point_${id}_${pointIndex}`;
+
+          const fieldset = document.createElement("fieldset");
+          fieldset.className = "blue";
+          fieldset.innerHTML = `
+            <legend>📍 Souvenir en lien avec un lieu cliqué</legend>
+            <label for="${textareaId}">Souvenir pour le point n°${pointIndex} :</label>
+            <textarea id="${textareaId}" name="${textareaId}" rows="3" placeholder="Écrivez ce que ce lieu évoque, une mémoire, un usage, etc."></textarea>
+          `;
+
+          divMemoire.appendChild(fieldset);
+        }
+
+        return; // stoppe ici pour les points (pas besoin du reste pour polygone)
+      }
+
 
       // 🧠 Ajoute le type de zone correspondant à cette carte
       const zoneType = mapIdToZoneType[id];
@@ -775,6 +790,10 @@
       }
 
       updateMemoireSection();
+
+      const btnZone = document.getElementById(`${id.replace('-map', '')}-btn-zone`);
+      if (btnZone) btnZone.textContent = "➕ Ajouter une autre zone";
+
     });
 
 
@@ -782,43 +801,40 @@
 
 
     map.on('draw:deleted', function (e) {
-      if (!zoneEtudeState.hasOwnProperty(id)) return;
-
       e.layers.eachLayer(layer => {
+        // 🔍 Supprimer champs mémoire pour polygone
         const textareaIdToRemove = Object.entries(zoneEtudeLayers).find(
           ([key, storedLayer]) => storedLayer === layer
         )?.[0];
 
         if (textareaIdToRemove) {
-          const textarea = document.getElementById(textareaIdToRemove);
-          if (textarea) {
-            const fieldset = textarea.closest("fieldset");
-            if (fieldset) fieldset.remove();
-            console.log(`[SUPPRIMÉ] ${textareaIdToRemove}`);
-          }
-
-          // 💥 Supprime aussi le fieldset dans la div memo-memoire
-          const divMemoire = document.getElementById(`memoire-${id}`);
-          if (divMemoire) {
-            const fieldsets = divMemoire.querySelectorAll("fieldset");
-            fieldsets.forEach(fs => {
-              const label = fs.querySelector("label");
-              if (label && label.getAttribute("for") === textareaIdToRemove) {
-                fs.remove();
-              }
-            });
-          }
-
+          const fieldset = document.getElementById(textareaIdToRemove)?.closest("fieldset");
+          if (fieldset) fieldset.remove();
           delete zoneEtudeLayers[textareaIdToRemove];
         }
+
+        // 🔍 Supprimer champs mémoire pour marqueur
+        const textareaIdForPoint = Object.entries(pointLayers).find(
+          ([key, marker]) => marker === layer
+        )?.[0];
+
+        if (textareaIdForPoint) {
+          const fieldset = document.getElementById(textareaIdForPoint)?.closest("fieldset");
+          if (fieldset) fieldset.remove();
+          delete pointLayers[textareaIdForPoint];
+        }
+
+        // ❌ Nettoyer les objets GeoJSON associés
+        geojsonZones.forEach((zone, index) => {
+          if (layer.toGeoJSON && JSON.stringify(layer.toGeoJSON().geometry) === JSON.stringify(zone.geometry)) {
+            geojsonZones.splice(index, 1);
+          }
+        });
       });
 
-      // Met à jour le comptage des zones restantes pour cette carte
-      zoneEtudePolygons[id] = Object.keys(zoneEtudeLayers)
-        .filter(key => key.startsWith(`memoire_${id}_`)).length;
-
-      updateMemoireSection();
+      updateMemoireSection(); // met à jour l’affichage général si besoin
     });
+
 
 
 
@@ -829,89 +845,93 @@
 
 
   function updateMemoireSection() {
-    const globalMemoire = document.getElementById("memoire-content");
-    if (!globalMemoire) {
-      console.warn("⛔️ Élément #memoire-content introuvable");
-      return;
-    }
-    globalMemoire.innerHTML = ""; // On recrée seulement le champ global libre
-
-    const cartes = document.querySelectorAll(".memoire-carte");
-    let interactionDétectée = false;
-
-    cartes.forEach((div) => {
-      const id = div.id.replace("memoire-", "");
-      const isActive = zoneEtudeState.hasOwnProperty(id);
-
-      // 🔎 Récupère les zones encore actives
-      const zoneKeys = Object.keys(zoneEtudeLayers).filter(k => k.startsWith(`memoire_${id}_`));
-
-      if (zoneKeys.length === 0 || !isActive) return;
-
-      interactionDétectée = true;
-
-      // Nettoie ce div avant de réinjecter les bonnes zones
-      div.innerHTML = "";
-
-      zoneKeys.forEach(textareaId => {
-        const numero = textareaId.split("_").pop();
-
-        const fieldset = document.createElement("fieldset");
-        fieldset.className = "blue";
-        fieldset.innerHTML = `
-          <legend>🟦 Souvenir en lien avec le savoir-faire</legend>
-          <label for="${textareaId}">Souvenirs en lien avec la zone d’étude n°${numero} :</label>
-          <textarea id="${textareaId}" name="${textareaId}" rows="3" placeholder="Décrivez ici votre souvenir, observation ou valeur liée à ce savoir-faire..."></textarea>
-        `;
-
-        div.appendChild(fieldset);
-
-        setTimeout(() => {
-          const textarea = document.getElementById(textareaId);
-          if (textarea && zoneEtudeLayers[textareaId]) {
-            textarea.addEventListener('focus', () => highlightZone(textareaId));
-            textarea.addEventListener('blur', () => {
-              zoneEtudeLayers[textareaId]?.setStyle({ color: '#3498db' });
-            });
-          }
-        }, 100);
-      });
-    });
-
-    // Texte global libre (s'il reste utile)
     const type = document.getElementById("type")?.value;
     const nom = document.getElementById("nom")?.value || "";
 
-    let globalLabel;
+    // Supprime tous les anciens fieldsets de zones (dans chaque div memo-memoire)
+    Object.keys(zoneEtudeLayers).forEach(textareaId => {
+      if (!textareaId.startsWith("memoire_")) return;
 
-    if (interactionDétectée) {
-      globalLabel = "🟦 Est-ce qu'il y aurait autre chose à raconter, transmettre ou confier autour de ce savoir-faire ?";
+      const mapId = textareaId.split("_")[1]; // ex: map0
+      const divMemoire = document.getElementById(`memoire-${mapId}`);
+      if (!divMemoire) return;
+
+      const fieldsets = divMemoire.querySelectorAll("fieldset[data-zone-type='zone']");
+      fieldsets.forEach(fs => fs.remove());
+    });
+
+    let zonesAjoutees = false;
+
+    Object.entries(zoneEtudeLayers).forEach(([textareaId, layer]) => {
+      if (!textareaId.startsWith("memoire_")) return;
+
+      zonesAjoutees = true;
+      const numero = textareaId.split("_").pop();
+      const mapId = textareaId.split("_")[1]; // ex: map0
+
+      const divMemoire = document.getElementById(`memoire-${mapId}`);
+      if (!divMemoire) return;
+
+      const fieldset = document.createElement("fieldset");
+      fieldset.className = "blue";
+      fieldset.dataset.zoneType = "zone";
+      fieldset.innerHTML = `
+        <legend>🟦 Souvenir en lien avec la zone d’étude</legend>
+        <label for="${textareaId}">Souvenir pour la zone n°${numero} :</label>
+        <textarea id="${textareaId}" name="${textareaId}" rows="3" placeholder="Décrivez ici votre souvenir, observation ou valeur liée à ce savoir-faire..."></textarea>
+      `;
+
+      divMemoire.appendChild(fieldset);
+
+      setTimeout(() => {
+        const textarea = document.getElementById(textareaId);
+        if (textarea) {
+          textarea.addEventListener('focus', () => highlightZone(textareaId));
+          textarea.addEventListener('blur', () => {
+            zoneEtudeLayers[textareaId]?.setStyle({ color: '#3498db' });
+          });
+        }
+      }, 100);
+    });
+
+    // Champ mémoire global
+    const existingGlobal = document.getElementById("memoire-global-textarea");
+    if (existingGlobal) existingGlobal.remove();
+
+    const globalMemoire = document.getElementById("memoire-content");
+    const fieldset = document.createElement("fieldset");
+    fieldset.className = "blue";
+    fieldset.id = "memoire-global-textarea";
+
+    if (zonesAjoutees) {
+      fieldset.innerHTML = `
+        <legend>🟦 Est-ce qu'il y aurait autre chose à raconter, transmettre ou confier autour de ce savoir-faire ?</legend>
+        <textarea name="memoire" rows="3" placeholder="Texte libre…"></textarea>
+      `;
     } else {
-      switch (type) {
-        case "personne":
-          globalLabel = "🟦 Qu’est-ce que ce savoir-faire signifie pour vous, au-delà du geste ou de la technique ?";
-          break;
-        case "famille":
-          globalLabel = "🟦 Que représente ce savoir-faire pour votre famille ou groupe ?";
-          break;
-        case "association":
-        case "entreprise":
-        case "collectif":
-        case "commune":
-          globalLabel = `🟦 Que représente ce savoir-faire pour ${nom.trim() ? nom : "votre structure"} ?`;
-          break;
-        default:
-          globalLabel = "🟦 Qu’est-ce que ce savoir-faire signifie pour vous, au-delà du geste ou de la technique ?";
-      }
+      const labelByType = {
+        personne: "🟦 Qu’est-ce que ce savoir-faire signifie pour vous, au-delà du geste ou de la technique ?",
+        famille: "🟦 Que représente ce savoir-faire pour votre famille ou groupe ?",
+        association: `🟦 Que représente ce savoir-faire pour ${nom || "votre association"} ?`,
+        entreprise: `🟦 Que représente ce savoir-faire pour ${nom || "votre entreprise"} ?`,
+        collectif: `🟦 Que représente ce savoir-faire pour ${nom || "votre collectif"} ?`,
+        commune: `🟦 Que représente ce savoir-faire pour ${nom || "votre commune"} ?`,
+        autre: "🟦 Qu’est-ce que ce savoir-faire signifie pour cette entité ?"
+      };
+
+      fieldset.innerHTML = `
+        <legend>${labelByType[type] || labelByType["personne"]}</legend>
+        <textarea name="memoire" rows="3" placeholder="Texte libre…"></textarea>
+      `;
     }
 
-    globalMemoire.innerHTML = `
-      <fieldset class="blue">
-        <legend>${globalLabel}</legend>
-        <textarea name="memoire" rows="3" placeholder="Texte libre…"></textarea>
-      </fieldset>
-    `;
+    globalMemoire.appendChild(fieldset);
   }
+
+
+
+
+
 
 
 
@@ -1288,6 +1308,28 @@
     // ✅ On convertit le tableau en string pour Baserow
     data.collaborations_dynamiques = JSON.stringify(collaborations);
 
+
+
+    const memoires_zones = [];
+    const memoires_points = [];
+
+    document.querySelectorAll("textarea[id^='memoire_']").forEach(textarea => {
+      const id = textarea.id;
+      const texte = textarea.value?.trim();
+      if (!texte) return;
+
+      if (id.includes("point")) {
+        memoires_points.push({ id, texte });
+      } else {
+        memoires_zones.push({ id, texte });
+      }
+    });
+
+    data.memoire_zones = JSON.stringify(memoires_zones);
+    data.memoire_points = JSON.stringify(memoires_points);
+
+
+
     try {
       // Gérer l'upload fichier (si présent)
       const fileInput = form.querySelector('input[name="fichier_media"]');
@@ -1398,15 +1440,13 @@
     fetch("https://raw.githubusercontent.com/JosephGrob/lavaux-cartographie/main/lavaux_perimetre.geojson")
       .then(res => res.json())
       .then(data => {
-        L.geoJSON(data, {
-          filter: function (feature) {
-            if (type === "centrale") {
-              return feature.properties.zone === "centrale";
-            } else if (type === "tampon_centrale") {
-              return true; // les deux zones
-            }
-            return false;
-          },
+        const filtered = data.features.filter(feature => {
+          if (type === "centrale") return feature.properties.zone === "centrale";
+          if (type === "tampon_centrale") return true;
+          return false;
+        });
+
+        const layerGroup = L.geoJSON(filtered, {
           style: function (feature) {
             const zone = feature.properties.zone || 'centrale';
             return {
@@ -1416,7 +1456,23 @@
             };
           }
         }).addTo(map);
+
+        filtered.forEach(feature => {
+          const clonedFeature = {
+            type: "Feature",
+            geometry: JSON.parse(JSON.stringify(feature.geometry)), // copie profonde
+            properties: {
+              ...feature.properties,
+              source: "lavaux",
+              zoneType: mapIdToZoneType[mapId] || "lavaux"
+            }
+          };
+          geojsonZones.push(clonedFeature);
+        });
+
+
       });
+
   }
 
 
@@ -1454,59 +1510,138 @@
     });
 
     drawPolygon.enable();
+
+    const helpBox = document.getElementById(`${mapId.replace('-map', '')}-interaction-help`);
+    if (helpBox) {
+      helpBox.innerHTML = "🖱 Cliquez sur la carte pour placer les coins de votre zone. Une fois terminé, revenez cliquer sur le premier point pour fermer la forme. Pour dessiner une autre zone, cliquez à nouveau sur le bouton ci-dessus.";
+    }
+
   }
 
 
 
   function resetMapInteractions(mapId) {
+    // Masque les instructions de dessin
     const instructions = document.getElementById(`${mapId}-drawing-instructions`);
     if (instructions) instructions.style.display = "none";
 
     const map = document.getElementById(mapId)._leaflet_map;
     if (!map) return;
 
-    // Supprime tous les calques sauf le fond de carte
+    // Supprime uniquement les calques temporaires ou spécifiques (ex : anciennes zones lavaux préchargées)
     map.eachLayer(layer => {
-      if (!(layer instanceof L.TileLayer)) {
-        map.removeLayer(layer);
+      if (
+        !(layer instanceof L.TileLayer) &&
+        !(drawnItemsMap[mapId] && drawnItemsMap[mapId].hasLayer(layer))
+      ) {
+        map.removeLayer(layer); // Ne retire que les calques non dessinés par l’utilisateur
       }
     });
 
-    // Réajoute le fond de carte
+    // Réassure que le fond de carte est bien en place
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-    // Supprime les polygones mémorisés pour cette carte
-    Object.keys(zoneEtudeLayers).forEach(key => {
-      if (key.startsWith(`memoire_${mapId}_`)) {
-        delete zoneEtudeLayers[key];
-      }
-    });
+    // Réaffiche les calques de dessin si ce n’est pas déjà fait
+    if (drawnItemsMap[mapId] && !map.hasLayer(drawnItemsMap[mapId])) {
+      map.addLayer(drawnItemsMap[mapId]);
+    }
 
-    // Supprime les souvenirs visibles pour cette carte
+    // Réinitialise seulement les éléments d’interface mémoire, pas les données dessinées
     const divMemoire = document.getElementById(`memoire-${mapId}`);
-    if (divMemoire) {
-      divMemoire.innerHTML = "";
-    }
-
-    // Supprime les geojson associés à cette carte
-    for (let i = geojsonZones.length - 1; i >= 0; i--) {
-      if (geojsonZones[i].properties?.zoneType === mapIdToZoneType[mapId]) {
-        geojsonZones.splice(i, 1);
-      }
-    }
-
-    // Réinitialise les compteurs
-    zoneEtudePolygons[mapId] = 0;
-    zoneEtudeState[mapId] = true;
 
     updateMemoireSection();
   }
+
+
+
+  function enableMapClick(mapId) {
+    resetMapInteractions(mapId);
+
+    const map = document.getElementById(mapId)._leaflet_map;
+    if (!map) return;
+
+    const drawnItems = drawnItemsMap[mapId];
+    if (!map.hasLayer(drawnItems)) {
+      map.addLayer(drawnItems);
+    }
+
+    function onMapClick(e) {
+      const marker = L.marker(e.latlng, {
+        draggable: true,
+        icon: defaultIcon
+      }).addTo(drawnItems);
+
+      marker.bindPopup("📍 Point sélectionné :<br>" + e.latlng.lat.toFixed(5) + ", " + e.latlng.lng.toFixed(5)).openPopup();
+
+      const geojson = marker.toGeoJSON();
+      geojson.properties.zoneType = mapIdToZoneType[mapId];
+      geojson.properties.isPoint = true;
+
+      geojsonZones.push(geojson);
+
+      const pointIndex = drawnItems.getLayers().filter(l => l instanceof L.Marker).length;
+      const textareaId = `memoire_point_${mapId}_${pointIndex}`;
+
+      // Enregistre le lien entre textarea et marqueur
+      pointLayers[textareaId] = marker;
+
+      const divMemoire = document.getElementById(`memoire-${mapId}`);
+      if (divMemoire) {
+        const fieldset = document.createElement("fieldset");
+        fieldset.className = "blue";
+        fieldset.innerHTML = `
+          <legend>📍 Souvenir en lien avec un lieu cliqué</legend>
+          <label for="${textareaId}">Souvenir pour le point n°${pointIndex} :</label>
+          <textarea id="${textareaId}" name="${textareaId}" rows="3" placeholder="Écrivez ce que ce lieu évoque, une mémoire, un usage, etc."></textarea>
+        `;
+        divMemoire.appendChild(fieldset);
+      }
+
+      const btnPoint = document.getElementById(`${mapId.replace('-map', '')}-btn-point`);
+      if (btnPoint) btnPoint.textContent = "➕ Ajouter un autre marqueur";
+
+
+      // Ajoute le focus/blur pour surligner en rouge
+      setTimeout(() => {
+        const textarea = document.getElementById(textareaId);
+        if (textarea) {
+          textarea.addEventListener('focus', () => {
+            // Réinitialise tous les marqueurs
+            Object.values(pointLayers).forEach(m => m.setIcon(defaultIcon));
+
+            // Colore celui lié
+            pointLayers[textareaId]?.setIcon(highlightIcon);
+          });
+
+          textarea.addEventListener('blur', () => {
+            pointLayers[textareaId]?.setIcon(defaultIcon);
+          });
+        }
+      }, 100);
+
+      map.off('click', onMapClick); // on désactive le clic pour éviter des doublons
+      updateMemoireSection();
+    }
+
+    map.on('click', onMapClick);
+      // ➕ Afficher l’aide utilisateur
+    const helpBox = document.getElementById(`${mapId.replace('-map', '')}-interaction-help`);
+    if (helpBox) {
+      helpBox.innerHTML = "🖱 Cliquez sur un endroit de la carte pour placer un point. Vous pouvez répéter l’opération pour ajouter plusieurs lieux.";
+    }
+  }
+
+
+
+
+
 
 
 </script>
 
 </body>
 </html>
+
 
